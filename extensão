@@ -1,58 +1,85 @@
+
 import streamlit as st
 from datetime import datetime
+import json
+import os
 
-# Configuracao da pagina
+# --- FUNCOES DE ARMAZENAMENTO ---
+def carregar_dados():
+    if os.path.exists('dados.json'):
+        with open('dados.json', 'r') as f:
+            return json.load(f)
+    return {"estudos": [], "gastos": 0.0}
+
+def salvar_dados(dados):
+    with open('dados.json', 'w') as f:
+        json.dump(dados, f)
+
+# Inicializar dados
+if 'dados' not in st.session_state:
+    st.session_state.dados = carregar_dados()
+
+# --- CONFIGURACAO DO APP ---
 st.set_page_config(page_title="Minha Extensao", layout="centered")
 
-st.title("Minha Extensao Pessoal")
-
-# Logica de Horario em Tempo Real
+# --- LOGICA DE HORARIO E PROXIMA ACAO ---
 agora = datetime.now()
 hora_atual = agora.time()
-dia_semana = agora.weekday() # 0=Segunda, 5=Sabado, 6=Domingo
+dia_semana = agora.weekday()
 
-st.subheader("Onde devo estar agora?")
+def obter_proxima_acao():
+    if dia_semana < 5: # Seg a Sex
+        if hora_atual < datetime.strptime("07:30", "%H:%M").time():
+            return "🌅 PROXIMA ACAO: Ir para o trabalho (Pegar Marmita!)"
+        elif hora_atual < datetime.strptime("17:00", "%H:%M").time():
+            return "💪 PROXIMA ACAO: Academia (Janela das 17:10)"
+        elif hora_atual < datetime.strptime("18:30", "%H:%M").time():
+            return "📚 PROXIMA ACAO: Ir para a Faculdade"
+        elif hora_atual < datetime.strptime("22:30", "%H:%M").time():
+            return "🏠 PROXIMA ACAO: Voltar para casa e descansar"
+    elif dia_semana == 5: # Sabado
+        if hora_atual < datetime.strptime("11:10", "%H:%M").time():
+            return "💪 PROXIMA ACAO: Academia pos-aula"
+        elif hora_atual < datetime.strptime("13:20", "%H:%M").time():
+            return "🚗 PROXIMA ACAO: Buscar esposa no trabalho"
+    return "🍱 PROXIMA ACAO: Organizacao pessoal e descanso"
 
-if dia_semana < 5: # Segunda a Sexta
-    if hora_atual < datetime.strptime("07:30", "%H:%M").time():
-        st.info("Casa: Preparar para o trabalho. Pegar marmita.")
-    elif hora_atual < datetime.strptime("17:00", "%H:%M").time():
-        st.success("Trabalho: Foco total na Geracao Distribuida.")
-    elif hora_atual < datetime.strptime("18:30", "%H:%M").time():
-        st.warning("Academia: Janela de treino ate 18:30. Foco!")
-    elif hora_atual < datetime.strptime("22:30", "%H:%M").time():
-        st.error("Faculdade: Horario de aula e estudos.")
-    else:
-        st.write("Casa: Chegada e descanso.")
+# --- INTERFACE ---
+st.title("🧬 Minha Extensao")
 
-elif dia_semana == 5: # Sabado
-    if hora_atual < datetime.strptime("11:10", "%H:%M").time():
-        st.info("Aula: Sábado letivo ate 11:10.")
-    elif hora_atual < datetime.strptime("13:00", "%H:%M").time():
-        st.warning("Academia: Treino rapido pos-aula.")
-    elif hora_atual < datetime.strptime("13:20", "%H:%M").time():
-        st.success("Logistica: Indo buscar esposa (13:20).")
-    else:
-        st.write("Casa: Organizacao domestica e familia.")
-
-else: # Domingo
-    st.info("Domingo: Preparar marmitas e conferir financas.")
+# Card de Proxima Acao (Destaque no Inicio)
+st.error(obter_proxima_acao()) 
 
 st.divider()
 
-# Abas de Gestao
-tab1, tab2 = st.tabs(["Estudos", "Financas"])
+# Abas Interativas
+tab1, tab2, tab3 = st.tabs(["📚 Estudos", "💰 Financas", "⚙️ Config"])
 
 with tab1:
-    st.write("Pendencias Academicas")
-    st.checkbox("Revisar materia do dia")
-    st.checkbox("Trabalho semestral")
-    st.text_input("Adicionar novo estudo:")
+    st.subheader("Meus Estudos")
+    novo_estudo = st.text_input("O que precisa estudar?")
+    if st.button("Salvar Lembrete de Estudo"):
+        if novo_estudo:
+            st.session_state.dados["estudos"].append(novo_estudo)
+            salvar_dados(st.session_state.dados)
+            st.success("Estudo salvo!")
+    
+    st.write("---")
+    for i, estudo in enumerate(st.session_state.dados["estudos"]):
+        st.write(f"{i+1}. {estudo}")
 
 with tab2:
-    st.write("Registro de Gastos")
-    valor = st.number_input("Valor R$:", min_value=0.0, step=1.0)
-    if st.button("Salvar Gasto"):
-        st.write(f"Registrado: R$ {valor}")
+    st.subheader("Controle Financeiro")
+    valor = st.number_input("Valor do gasto hoje (R$):", min_value=0.0, step=1.0)
+    if st.button("Registrar Gasto"):
+        st.session_state.dados["gastos"] += valor
+        salvar_dados(st.session_state.dados)
+        st.success(f"Gasto acumulado: R$ {st.session_state.dados['gastos']:.2f}")
 
-st.caption("Foco e disciplina. O resultado vem com a constancia.")
+with tab3:
+    if st.button("Limpar Todos os Dados"):
+        st.session_state.dados = {"estudos": [], "gastos": 0.0}
+        salvar_dados(st.session_state.dados)
+        st.warning("Dados apagados!")
+
+st.caption(f"Atualizado em: {agora.strftime('%d/%m %H:%M')}")
